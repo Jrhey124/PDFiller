@@ -1,0 +1,23 @@
+{
+  "addressees": {
+    "Dr. Maria C. Santos": {
+
+      "designation": "Dean, College of Engineering and Architecture",
+      "office_name": "College of Engineering and Architecture",
+      "office_address": "Technological University of the Philippines, Ayala Blvd., Ermita, Manila"
+    },
+    "ENGR. JUAN D. REYES": {
+      "designation": "Chairperson",
+      "office_name": "Department of Industrial Engineering",
+      "office_address": "Technological University of the Philippines, Ayala Blvd., Ermita, Manila"
+    }, 
+    "Dr. Jennifer B. enriquez": {
+      
+      "designation": "Program Chair, Bachelor of Science in Computer Engineering",
+      "office_name": "Department of Computer Engineering",
+      "office_address": "Technological Institute of the Philippines, Quiapo, Manila"
+    }
+  }
+
+
+}

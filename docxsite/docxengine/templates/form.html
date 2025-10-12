@@ -1,0 +1,73 @@
+{% load static %}
+<link rel="stylesheet" href="{% static 'form_styles.css' %}">
+
+<!-- Load the script -->
+<script src="{% static 'student_fields.js' %}"></script>
+
+<script src="{% static 'addressee.js' %}" defer></script>
+
+<script id="addressee-data" type="application/json">
+  {{ addressees_json|safe }}
+</script>
+
+<form method="POST" class="form-container">
+  {% csrf_token %}
+
+  <h2>PDFiller by T.I.P</h2>
+
+  <div class="form-group">
+    <label for="template">Select Template:</label>
+    <select name="template" id="template" required>
+      <option value="Request_Letter.docx">Request Letter</option>
+      <option value="Endorsement.docx">Endorsement</option>
+      <option value="Clearance.docx">Clearance</option>
+    </select>
+  </div>
+
+<div class="form-group">
+    <select name="addressee" id="addressee" required>
+        <option value="" disabled selected>Select an addressee</option>
+        <!-- JS will populate options -->
+    </select>
+    <div id="addressee-details" class="addressee-details"></div>
+</div>
+
+  <div class="form-group">
+    <label for="adviser">Adviser:</label>
+    <input type="text" name="adviser" id="adviser" required>
+  </div>
+
+  <div class="form-group">
+    <label>Students:</label>
+    <div id="student-fields">
+      <div class="student-entry">
+        <input type="text" name="students" required>
+        <button type="button" onclick="removeStudentField(this)">–</button>
+      </div>
+    </div>
+    <button type="button" onclick="addStudentField()">+ Add Student</button>
+  </div>
+
+  <div class="form-group">
+    <label for="course_section">Course & Section:</label>
+    <input type="text" name="course_section" id="course_section" required>
+  </div>
+
+  <div class="form-group">
+    <label for="details">Details:</label>
+    <textarea name="details" id="details" required></textarea>
+  </div>
+
+  <div class="form-group">
+    <label for="gender">Gender:</label>
+    <select name="gender" id="gender" required>
+      <option value="Mr.">Mr.</option>
+      <option value="Ms.">Ms.</option>
+    </select>
+  </div>
+
+  <button type="submit" class="submit-btn">Generate Preview</button>
+</form>
+
+
+
