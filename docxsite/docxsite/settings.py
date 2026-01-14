@@ -26,7 +26,10 @@ SECRET_KEY = 'django-insecure-x5=vbb2#f$0gsltb40gc!avwq(ngu+*xdtt=j2kt+2m2k-3afp
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0']
+
+# Allow iframe embedding for PDF preview
+X_FRAME_OPTIONS = 'SAMEORIGIN'
 
 
 # Application definition
@@ -117,8 +120,8 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
 STATIC_URL = '/static/'
-STATIC_ROOT = BASE_DIR / 'static'  # You said you changed this — good
-STATICFILES_DIRS = [BASE_DIR / 'docxengine' / 'static']
+STATIC_ROOT = BASE_DIR / 'staticfiles'  # Where collectstatic will gather files
+STATICFILES_DIRS = [BASE_DIR / 'docxengine' / 'static']  # Source directories for static files
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field

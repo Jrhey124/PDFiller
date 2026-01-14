@@ -65,35 +65,44 @@ def remove_tab_elements(run):
     for tab in run._r.findall(qn('w:tab')):
         run._r.remove(tab)
 
-def replace_tag_in_paragraph(paragraph, tag: str, replacement: str):
+def replace_tag_in_paragraph(paragraph, tag: str, replacement: str, preserve_tabs: bool = False):
     merge_adjacent_runs(paragraph)  # Optional, from earlier
     while True:
         for run in paragraph.runs:
             if tag in run.text:
-                # 1. Clean out any existing tab elements
-                remove_tab_elements(run)
+                if preserve_tabs:
+                    # Replace text in XML while preserving tab elements
+                    for text_elem in run._r.findall(qn('w:t')):
+                        if text_elem.text and tag in text_elem.text:
+                            text_elem.text = text_elem.text.replace(tag, replacement)
+                else:
+                    # 1. Clean out any existing tab elements
+                    remove_tab_elements(run)
 
-                # 2. Split the text
-                before, _, after = run.text.partition(tag)
-                run.text = before
+                    # 2. Split the text
+                    before, _, after = run.text.partition(tag)
+                    run.text = before
 
-                # 3. Insert replacement + remainder
-                repl = insert_run_after(paragraph, run, replacement, run)
-                insert_run_after(paragraph, repl, after, run)
+                    # 3. Insert replacement + remainder
+                    repl = insert_run_after(paragraph, run, replacement, run)
+                    insert_run_after(paragraph, repl, after, run)
                 break
         else:
             return
-def smart_replace_in_docx(input_path: str, replacements: dict):
+def smart_replace_in_docx(input_path: str, replacements: dict, preserve_tabs_for: list = None):
     """
     Open a .docx at input_path, replace all tags in `replacements`,
     preserving styling, and save to output_path.
+    preserve_tabs_for: list of tags where tabs should be preserved (e.g., ['<STUDENT_FULLNAME>'])
     """
     doc = Document(input_path)
+    if preserve_tabs_for is None:
+        preserve_tabs_for = []
 
     # Body paragraphs
     for p in doc.paragraphs:
         for tag, val in replacements.items():
-            replace_tag_in_paragraph(p, tag, val)
+            replace_tag_in_paragraph(p, tag, val, preserve_tabs=(tag in preserve_tabs_for))
 
     # Tables
     for tbl in doc.tables:
@@ -101,14 +110,14 @@ def smart_replace_in_docx(input_path: str, replacements: dict):
             for cell in row.cells:
                 for p in cell.paragraphs:
                     for tag, val in replacements.items():
-                        replace_tag_in_paragraph(p, tag, val)
+                        replace_tag_in_paragraph(p, tag, val, preserve_tabs=(tag in preserve_tabs_for))
 
     # Headers & Footers
     for section in doc.sections:
         for hdr in (section.header, section.footer):
             for p in hdr.paragraphs:
                 for tag, val in replacements.items():
-                    replace_tag_in_paragraph(p, tag, val)
+                    replace_tag_in_paragraph(p, tag, val, preserve_tabs=(tag in preserve_tabs_for))
     return doc
     #doc.save(output_path)
 
@@ -118,20 +127,23 @@ def Request_Letter(addressee, adviser, students, course_section, details, gender
     gender = "M" if gender == "Mr." else "F" if gender == "Ms." else "N"
 
     print("resources: ", resourses)
-    addressees_list = resourses["addressees"]
+    addressees_list = resourses.get("addressees", {})
+    
+    if addressee not in addressees_list:
+        raise ValueError(f"Addressee '{addressee}' not found in resources.json")
 
     replacements = {
         "<DATE>": date.today().strftime("%B %d, %Y"),
         "<TITLE AND NAME OF ADDRESSEE>": addressee,
-        "<DESIGNATION>": addressees_list[addressee]["designation"],
-        "<NAME OF OFFICE>": addressees_list[addressee]["office_name"],
-        "<ADDRESS OF OFFICE>": addressees_list[addressee]["office_address"],
-        "<STUDENTS>": ", ".join(students),
+        "<DESIGNATION>": addressees_list[addressee].get("designation", ""),
+        "<NAME OF OFFICE>": addressees_list[addressee].get("office_name", ""),
+        "<ADDRESS OF OFFICE>": addressees_list[addressee].get("office_address", ""),
+        "<STUDENTS>": (students[0] if len(students) == 1 else ", ".join(students)),
         "<IS_ARE>": "is" if len(students) == 1 else "are",
         "<POSSESSIVE_PRONOUN>": (
             "their" if len(students) > 1
             else "her" if gender=="F"
-            else "him" if gender=="M"
+            else "his" if gender=="M"
             else "their"
         ),
         "<COURSE_SECTION>": course_section,
@@ -158,9 +170,11 @@ def Request_Letter(addressee, adviser, students, course_section, details, gender
 
     base_dir = os.path.dirname(os.path.abspath(__file__))  # points to utils/
     template_path = os.path.join(base_dir, 'Templates', 'ORIGINAL FORMAT of Request Letter (026).docx')
+    
+    if not os.path.exists(template_path):
+        raise FileNotFoundError(f"Template file not found: {template_path}")
 
-    doc = smart_replace_in_docx(template_path, replacements)
-    #doc.save("Letter_filled.docx")
+    doc = smart_replace_in_docx(template_path, replacements, preserve_tabs_for=['<STUDENT_FULLNAME>'])
     return doc
 
 if __name__ == "__main__":
