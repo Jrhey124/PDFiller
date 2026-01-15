@@ -15,10 +15,11 @@ from django.conf import settings
 def find_libreoffice():
     """Try to find LibreOffice executable on Windows."""
     possible_paths = [
-        r'C:\Program Files\LibreOffice\program\soffice.exe',
-        r'C:\Program Files (x86)\LibreOffice\program\soffice.exe',
+    "/usr/lib/libreoffice/program/soffice", # actual binary
+    "/usr/bin/soffice",
     ]
     for path in possible_paths:
+        print("DEBUG checking:", path, "exists?", os.path.exists(path))
         if os.path.exists(path):
             return path
     return None

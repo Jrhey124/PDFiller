@@ -9,8 +9,15 @@ from docx.oxml.ns import qn
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 json_path = os.path.join(BASE_DIR, 'resources.json')
 
-with open(json_path, 'r') as f:
-    resourses = json.load(f)
+with open(json_path, 'r', encoding='utf-8') as f:
+    resources = json.load(f)
+
+
+# ---------- Helpers ----------
+
+def is_image_run(run: Run) -> bool:
+    """Return True if this run contains an inline image (<w:drawing>)."""
+    return bool(run._r.findall(qn('w:drawing')))
 
 
 def copy_run_style(src: Run, dest: Run):
@@ -26,11 +33,10 @@ def copy_run_style(src: Run, dest: Run):
 
 def insert_run_after(paragraph, anchor_run: Run, text: str, style_src: Run) -> Run:
     """
-    Insert a new run with `text` immediately after `anchor_run`, 
+    Insert a new run with `text` immediately after `anchor_run`,
     then copy styling from `style_src`.
     """
     new_run = paragraph.add_run(text)
-    # reposition its XML element just after the anchor
     anchor_elm = anchor_run._r
     new_elm    = new_run._r
     anchor_elm.addnext(new_elm)
@@ -39,7 +45,7 @@ def insert_run_after(paragraph, anchor_run: Run, text: str, style_src: Run) -> R
 
 
 def merge_adjacent_runs(paragraph):
-    """Collapse adjacent runs with identical style so tags stay intact."""
+    """Collapse adjacent runs with identical style, skipping image runs."""
     def same_style(a, b):
         return (
             a.bold      == b.bold
@@ -53,6 +59,9 @@ def merge_adjacent_runs(paragraph):
     i = 0
     while i < len(paragraph.runs) - 1:
         run, nxt = paragraph.runs[i], paragraph.runs[i+1]
+        if is_image_run(run) or is_image_run(nxt):
+            i += 1
+            continue
         if same_style(run, nxt):
             run.text += nxt.text
             nxt._r.getparent().remove(nxt._r)
@@ -65,35 +74,34 @@ def remove_tab_elements(run):
     for tab in run._r.findall(qn('w:tab')):
         run._r.remove(tab)
 
+
 def replace_tag_in_paragraph(paragraph, tag: str, replacement: str, preserve_tabs: bool = False):
-    merge_adjacent_runs(paragraph)  # Optional, from earlier
+    """Replace placeholders in text runs only, leaving image runs untouched."""
+    merge_adjacent_runs(paragraph)
     while True:
         for run in paragraph.runs:
+            if is_image_run(run):
+                continue
             if tag in run.text:
                 if preserve_tabs:
-                    # Replace text in XML while preserving tab elements
                     for text_elem in run._r.findall(qn('w:t')):
                         if text_elem.text and tag in text_elem.text:
                             text_elem.text = text_elem.text.replace(tag, replacement)
                 else:
-                    # 1. Clean out any existing tab elements
                     remove_tab_elements(run)
-
-                    # 2. Split the text
                     before, _, after = run.text.partition(tag)
                     run.text = before
-
-                    # 3. Insert replacement + remainder
                     repl = insert_run_after(paragraph, run, replacement, run)
                     insert_run_after(paragraph, repl, after, run)
                 break
         else:
             return
+
+
 def smart_replace_in_docx(input_path: str, replacements: dict, preserve_tabs_for: list = None):
     """
     Open a .docx at input_path, replace all tags in `replacements`,
-    preserving styling, and save to output_path.
-    preserve_tabs_for: list of tags where tabs should be preserved (e.g., ['<STUDENT_FULLNAME>'])
+    preserving styling, and return the Document object.
     """
     doc = Document(input_path)
     if preserve_tabs_for is None:
@@ -118,17 +126,17 @@ def smart_replace_in_docx(input_path: str, replacements: dict, preserve_tabs_for
             for p in hdr.paragraphs:
                 for tag, val in replacements.items():
                     replace_tag_in_paragraph(p, tag, val, preserve_tabs=(tag in preserve_tabs_for))
-    return doc
-    #doc.save(output_path)
 
+    return doc
+
+
+# ---------- Main Request Letter ----------
 
 def Request_Letter(addressee, adviser, students, course_section, details, gender):
-    """Build a .docx letter by replacing placeholders, preserving style."""
+    """Build a .docx letter by replacing placeholders, preserving style and images."""
     gender = "M" if gender == "Mr." else "F" if gender == "Ms." else "N"
 
-    print("resources: ", resourses)
-    addressees_list = resourses.get("addressees", {})
-    
+    addressees_list = resources.get("addressees", {})
     if addressee not in addressees_list:
         raise ValueError(f"Addressee '{addressee}' not found in resources.json")
 
@@ -142,48 +150,42 @@ def Request_Letter(addressee, adviser, students, course_section, details, gender
         "<IS_ARE>": "is" if len(students) == 1 else "are",
         "<POSSESSIVE_PRONOUN>": (
             "their" if len(students) > 1
-            else "her" if gender=="F"
-            else "his" if gender=="M"
+            else "her" if gender == "F"
+            else "his" if gender == "M"
             else "their"
         ),
         "<COURSE_SECTION>": course_section,
         "<OBJECT_PRONOUN>": (
             "them" if len(students) > 1
-            else "her" if gender=="F"
-            else "him" if gender=="M"
+            else "her" if gender == "F"
+            else "him" if gender == "M"
             else "them"
         ),
         "<DATA_GATHERING_DETAILS>": "" if not details else f"({details})",
         "<SUBJECT_PRONOUN>": (
             "they" if len(students) > 1
-            else "she" if gender=="F"
-            else "he" if gender=="M"
+            else "she" if gender == "F"
+            else "he" if gender == "M"
             else "they"
         ),
         "<ADVISER>": adviser,
         "<STUDENT_FULLNAME>": (
-            students[0] if len(students)==1
+            students[0] if len(students) == 1
             else students[0] + " et al."
         )
     }
 
-
-    base_dir = os.path.dirname(os.path.abspath(__file__))  # points to utils/
-    template_path = os.path.join(base_dir, 'Templates', 'ORIGINAL FORMAT of Request Letter (026).docx')
-    
+    template_path = os.path.join(BASE_DIR, 'Templates', 'ORIGINAL FORMAT of Request Letter (026).docx')
     if not os.path.exists(template_path):
         raise FileNotFoundError(f"Template file not found: {template_path}")
 
     doc = smart_replace_in_docx(template_path, replacements, preserve_tabs_for=['<STUDENT_FULLNAME>'])
     return doc
 
+
+# ---------- Test harness ----------
+
 if __name__ == "__main__":
-    '''smart_replace_in_docx(
-        "Templates/_TEST_.docx",
-        "Letter_filled.docx",
-        {"<TEST>": "Replaced!"}
-        )
-'''
     Request_Letter(
         addressee="Dr. Maria C. Santos",
         adviser="Engr. Berlim Limbauan",
