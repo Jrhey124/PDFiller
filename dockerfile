@@ -10,10 +10,14 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-COPY requirements.txt .
+# Copy requirements and install
+COPY requirements.txt /app/
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . .
+# Copy the whole repo
+COPY . /app/
 
 EXPOSE 8000
-CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
+
+# Run manage.py from the docxsite folder
+CMD ["python", "/app/docxsite/manage.py", "runserver", "0.0.0.0:8000"]
